@@ -1,8 +1,14 @@
 #![allow(unused)]
 
+mod error;
 mod html;
 mod javascript;
+use error::Error;
+mod manifest;
+mod prelude;
+use prelude::*;
 
+use crate::manifest::Manifest;
 use clap::Parser;
 use html::*;
 use html5ever::serialize::{serialize, SerializeOpts};
@@ -15,25 +21,24 @@ use std::fmt::Display;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
+use std::path::{Path, PathBuf};
+use thiserror::__private::AsDisplay;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    file_name: String,
+    file_path: PathBuf,
 
     #[arg(long)]
-    html_output_file: String,
-
-    #[arg(long)]
-    module_output_file: String,
+    package_name: Option<String>,
 }
 
-fn main() {
+fn main() -> Result<()> {
     let args = Args::parse();
 
-    println!("Opening file: {}", args.file_name);
+    println!("Sub-optimizing file: {}", &args.file_path.as_display());
 
-    let file_contents = fs::read(args.file_name).unwrap();
+    let file_contents = fs::read(&args.file_path)?;
 
     let opts = ParseOpts {
         tree_builder: TreeBuilderOpts {
@@ -44,43 +49,34 @@ fn main() {
     };
     let dom = parse_document(RcDom::default(), opts)
         .from_utf8()
-        .read_from(&mut file_contents.as_slice())
-        .unwrap();
+        .read_from(&mut file_contents.as_slice())?;
 
     let document = dom.document.clone();
     let scripts = extract_javascript(&document);
 
     let source_text = scripts[0].as_str();
 
-    println!("---------------------------------------------------");
-
     let (mut statements, exports) = extract_js_functions(source_text);
     let statements_mut = &mut statements;
 
+    let manifest = Manifest::from_markup_file(&args.file_path, &args.package_name )?;
 
-    println!("---------------------UPDATES BEFORE--------------------------");
-    println!("{:?}", statements_mut);
-
-    update_script_tag_rec(&document, statements_mut, &exports, &args.module_output_file);
-
-
-    println!("---------------------EXPORTS--------------------------");
-    println!("{:?}", exports);
-
-    println!("---------------------UPDATES AFTER--------------------------");
-    println!("{:?}", statements_mut);
+    update_script_tag(&document, statements_mut, &exports, &manifest.module_name);
 
     let s_handle: SerializableHandle = document.clone().into();
 
-    let module_text = exports.iter().fold(String::new(), |acc, func| {
-        format!("{}\n{}\n", acc, func)
-    });
- 
-    let mut html_file = File::create(args.html_output_file).expect("Could not create file");
-    let mut js_file = File::create(args.module_output_file).expect("Could not create file");
+    let module_text = exports
+        .iter()
+        .fold(String::new(), |acc, func| format!("{}\n{}\n", acc, func));
+
+    let (mut html_file, mut js_file) = manifest.manifest_files()?;
 
     serialize(&mut html_file, &s_handle, SerializeOpts::default());
-    js_file.write_all(module_text.as_bytes()).expect("Could not write to file");
+    js_file
+        .write_all(module_text.as_bytes())
+        .expect("Could not write to file");
 
     println!("Done");
+
+    Ok(())
 }

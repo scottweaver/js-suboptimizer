@@ -40,8 +40,6 @@ pub fn update_script_tag<M: ModuleImports>(handle: &Handle, js_statements: &Vec<
             node.children.borrow().iter().for_each(|child| {
                 if let NodeData::Text { ref contents } = child.data {
 
-                    println!("Number of statements: {}", js_statements.len());
-
                    let rendered_statements = js_statements.iter().fold(String::new(), |acc, js_statement| {
                         let text: String = js_statement.to_owned().into();
                         format!("{} {}", acc, text)

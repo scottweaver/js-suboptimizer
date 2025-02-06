@@ -6,6 +6,10 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.5.28", features = ["derive"] }
 kuchikiki = "0.8.2"
+html5ever = "0.29.1"
+markup5ever = "0.14.1"
+markup5ever_rcdom = "0.5.0-unofficial"
+
 oxc_parser = "0.48.2"
 oxc_ast = "0.48.2"
 oxc_syntax = "0.48.2"

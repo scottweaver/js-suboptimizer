@@ -1,11 +1,11 @@
 [package]
-name = "js-optimizer"
+name = "js-suboptimizer"
+authors = ["Scott Weaver <scott.t.weaver@gmail.com>"]
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.28", features = ["derive"] }
-kuchikiki = "0.8.2"
 html5ever = "0.29.1"
 markup5ever = "0.14.1"
 markup5ever_rcdom = "0.5.0-unofficial"

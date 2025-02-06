@@ -10,6 +10,7 @@ enum State {
         split: bool,
     },
     SingleComment,
+    MultiComment {tokens: Vec<String>},
     Splitting,
 }
 
@@ -74,12 +75,12 @@ impl ModuleImports for Vec<ExportJsFunction> {
 }
 
 // TODO: This is a very basic way to achieve restoration of whitespace.  Maybe we look at an external prettifier?
-fn restore_ws(token: &str, depth: u32) -> String {
+fn naive_formatter(token: &str, depth: u32) -> String {
     let p0 = depth;
     let padding = "  ".repeat(p0 as usize);
     if (token.ends_with("{")) {
         token.to_owned() + "\n" + padding.as_str()
-    } else if token.ends_with(";") {
+    } else if token.ends_with(";") || token.ends_with("*/") {
         token.to_owned() + "\n"
     } else if token.ends_with("}") {
         padding + token + "\n"
@@ -98,13 +99,13 @@ pub fn extract_js_functions(source_text: &str) -> (Vec<JsStatement>, Vec<ExportJ
             if token == "function" {
                 State::ExportJsFunction {
                     name: None,
-                    tokens: Vec::from([restore_ws(token, 1)]),
+                    tokens: Vec::from([naive_formatter(token, 1)]),
                     depth: 0,
                     split: true,
                 }
             } else {
                 statements.push(JsStatement {
-                    tokens: Vec::from([restore_ws(token, 0)]),
+                    tokens: Vec::from([naive_formatter(token, 0)]),
                 });
                 State::Statement
             }
@@ -114,9 +115,21 @@ pub fn extract_js_functions(source_text: &str) -> (Vec<JsStatement>, Vec<ExportJ
                 State::Splitting
             } else {
                 statements.push(JsStatement {
-                    tokens: Vec::from([restore_ws(token, 0)]),
+                    tokens: Vec::from([naive_formatter(token, 0)]),
                 });
                 State::Statement
+            }
+        }
+        State::MultiComment {mut tokens} => {
+            if token == "*/" {
+                tokens.push(naive_formatter(token, 0));
+                statements.push(JsStatement {
+                    tokens,
+                });
+                State::Statement
+            } else {
+                tokens.push(naive_formatter(token, 0));
+                State::MultiComment {tokens}
             }
         }
         State::Statement => {
@@ -128,7 +141,7 @@ pub fn extract_js_functions(source_text: &str) -> (Vec<JsStatement>, Vec<ExportJ
             } else {
                 // tokens.push(restore_ws(token, 0));
                 statements.push(JsStatement {
-                    tokens: Vec::from([restore_ws(token, 0)]),
+                    tokens: Vec::from([naive_formatter(token, 0)]),
                 });
                 State::Statement
             }
@@ -151,7 +164,7 @@ pub fn extract_js_functions(source_text: &str) -> (Vec<JsStatement>, Vec<ExportJ
             };
 
             if token == "{" {
-                tokens.push(restore_ws(token, depth));
+                tokens.push(naive_formatter(token, depth));
                 State::ExportJsFunction {
                     name: name0,
                     tokens,
@@ -160,7 +173,7 @@ pub fn extract_js_functions(source_text: &str) -> (Vec<JsStatement>, Vec<ExportJ
                 }
             } else if token == "}" {
                 let depth0 = depth - 1;
-                tokens.push(restore_ws(token, depth0));
+                tokens.push(naive_formatter(token, depth0));
                 if depth0 > 0 {
                     State::ExportJsFunction {
                         name: name0,
@@ -187,7 +200,7 @@ pub fn extract_js_functions(source_text: &str) -> (Vec<JsStatement>, Vec<ExportJ
                     State::Statement
                 }
             } else {
-                tokens.push(restore_ws(token, depth));
+                tokens.push(naive_formatter(token, depth));
                 State::ExportJsFunction {
                     name: name0,
                     tokens,
